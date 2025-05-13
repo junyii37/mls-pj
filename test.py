@@ -32,7 +32,8 @@ def parse_args():
     parser.add_argument(
         "--model_path",
         type=Path,
-        default=Path("saved_models/best_model/best_model.pickle"),
+        # default=Path("saved_models/best_model/best_model.pickle"),
+        default=None,
         help="Path to best_model.pickle (overrides --saved_dir lookup)"
     )
     parser.add_argument(

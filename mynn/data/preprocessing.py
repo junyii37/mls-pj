@@ -14,6 +14,9 @@ def preprocess(dataset):
     # 将数据转换为 numpy，并添加一个维度
     images = dataset.data.numpy().reshape(-1, 1, 28, 28)
 
+    if images.max() > 1.0:
+        images = images / 255.0
+
     # transfer targets to one-hot labels
     labels = dataset.targets
     labels_onehot = np.zeros((len(labels), 10))

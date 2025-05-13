@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument("--weight_decay", type=float, default=0.2, help="L2 weight decay coefficient")
     parser.add_argument("--rate", type=float, default=0.3, help="Dropout rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Training batch size")
-    parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
+    parser.add_argument("--num_epochs", type=int, default=2, help="Number of training epochs")
     parser.add_argument("--T_max", type=int, default=10, help="T_max for CosineAnnealingLR")
     parser.add_argument("--eta_min", type=float, default=1e-6, help="eta_min for CosineAnnealingLR")
     parser.add_argument("--patience", type=int, default=7, help="Patience for EarlyStopping")
@@ -54,6 +54,7 @@ def main():
 
     train_images, train_labels = preprocess(train_dataset)
     test_images,  test_labels  = preprocess(test_dataset)
+
     train_set = (train_images[:50000], train_labels[:50000])
     dev_set   = (train_images[50000:], train_labels[50000:])
     test_set  = (test_images,       test_labels)
@@ -106,19 +107,19 @@ def main():
     # Test 2
     layers = [
         Conv(in_channel=1, out_channel=32, kernel=3, stride=1, padding=1, weight_decay=args.weight_decay),
-        BN(normalized_dims=(0,2,3)),
+        BN(normalized_dims=(0, 2, 3), param_shape=(1, 32, 1, 1), weight_decay=args.weight_decay),
         ReLU(),
         Pooling(kernel=2),
 
         Conv(in_channel=32, out_channel=64, kernel=3, stride=1, padding=1, weight_decay=args.weight_decay),
-        BN(normalized_dims=(0, 2, 3)),
+        BN(normalized_dims=(0, 2, 3), param_shape=(1, 64, 1, 1), weight_decay=args.weight_decay),
         ReLU(),
         Pooling(kernel=2),
 
         Flatten(),
         Dropout(rate=args.rate),
 
-        Linear(in_channel=64*7*7, out_channel=10, weight_decay=args.weight_decay),
+        Linear(in_channel=64 * 7 * 7, out_channel=10, weight_decay=args.weight_decay),
     ]
 
     model     = Model(layers)
