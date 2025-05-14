@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument("--weight_decay", type=float, default=0.2, help="L2 weight decay coefficient")
     parser.add_argument("--rate", type=float, default=0.3, help="Dropout rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Training batch size")
-    parser.add_argument("--num_epochs", type=int, default=2, help="Number of training epochs")
+    parser.add_argument("--num_epochs", type=int, default=20, help="Number of training epochs")
     parser.add_argument("--T_max", type=int, default=10, help="T_max for CosineAnnealingLR")
     parser.add_argument("--eta_min", type=float, default=1e-6, help="eta_min for CosineAnnealingLR")
     parser.add_argument("--patience", type=int, default=7, help="Patience for EarlyStopping")
