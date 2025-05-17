@@ -54,6 +54,7 @@ class Model:
     def backward(self, grads):
         for layer in reversed(self.layers):
             grads = layer.backward(grads)
+        self.grad_input = grads
         return grads
 
     def save_model(self, file_path):
