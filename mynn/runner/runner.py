@@ -8,33 +8,7 @@ import sys
 from tqdm import tqdm
 
 from mynn.data import dataloader
-
-def generate_adversarial_batch(model, x_batch, y_batch,loss_fn, epsilon=1.0):
-    """
-    给定 batch 数据，基于 FGSM 方法实时生成对抗样本。
-
-    参数:
-        model: 模型对象
-        x_batch: 输入图像，形状 (B, C, H, W)，cupy 数组
-        y_batch: 标签，cupy 数组
-        epsilon: FGSM 扰动强度
-
-    返回:
-        对抗样本（cupy 数组）
-    """
-    # 前向
-    logits = model.forward(x_batch)
-    loss, _ = loss_fn.forward(logits, y_batch)
-
-    # 反向求梯度
-    loss_fn.backward()
-    grad = model.grad_input
-
-    # FGSM 扰动（像素值假设在 [0, 255]）
-    x_adv = x_batch + epsilon * cp.sign(grad)
-    x_adv = cp.clip(x_adv, 0, 255)
-
-    return x_adv
+from ..attack import generate_adversarial_batch_bim, generate_adversarial_batch_fgsm
 
 class RunnerM:
     """
@@ -141,7 +115,13 @@ class RunnerM:
         strategy = kwargs.get('strategy', None)
         epsilon = kwargs.get('epsilon', 1.0)
         shuffle = kwargs.get('shuffle', True)
+        attack_strategy = kwargs.get('attack_strategy', None)
         save_dir = Path(kwargs.get('save_dir', 'saved_models'))
+
+        if attack_strategy == 'bim':
+            generate_adversarial_batch = generate_adversarial_batch_bim
+        else:
+            generate_adversarial_batch = generate_adversarial_batch_fgsm
 
         self.results.clear()
         now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
