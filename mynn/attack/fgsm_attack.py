@@ -25,7 +25,7 @@ def generate_adversarial_batch_fgsm(model, x_batch, y_batch, loss_fn, epsilon=1 
 
     # FGSM 扰动（像素值假设在 [0, 255]）
     x_adv = x_batch + epsilon * cp.sign(grad)
-    x_adv = cp.clip(x_adv, 0, 255)
+    x_adv = cp.clip(x_adv, 0, 1)
 
     return x_adv
 
