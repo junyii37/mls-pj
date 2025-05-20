@@ -1,4 +1,5 @@
 from .optimizer import Optimizer
+from ..layer.blocks import BasicBlock
 
 import cupy as cp
 
@@ -22,6 +23,19 @@ class Adam(Optimizer):
         # 初始化均值和方差
         for layer in self.model.layers:
             if layer.init['optimizable']:
+                if isinstance(layer, BasicBlock):
+                    # 为 BasicBlock 的子层创建优化器状态
+                    block_m, block_v = {}, {}
+                    for sublayer in [layer.conv1, layer.bn1, layer.conv2, layer.bn2,
+                                    layer.short_conv, layer.short_bn]:
+                        if sublayer is not None and sublayer.init['optimizable']:
+                            for key in sublayer.params.keys():
+                                block_m[id(sublayer), key] = cp.zeros_like(sublayer.params[key])
+                                block_v[id(sublayer), key] = cp.zeros_like(sublayer.params[key])
+                    self.m.append(block_m)
+                    self.v.append(block_v)
+                    continue
+
                 layer_m = {}
                 layer_v = {}
                 for key in layer.params.keys():
@@ -38,6 +52,27 @@ class Adam(Optimizer):
 
         for i, layer in enumerate(self.model.layers):
             if layer.init['optimizable']:
+                if isinstance(layer, BasicBlock):
+                    block_m = self.m[i]
+                    block_v = self.v[i]
+                    for sublayer in [layer.conv1, layer.bn1, layer.conv2, layer.bn2,
+                                    layer.short_conv, layer.short_bn]:
+                        if sublayer is not None and sublayer.init['optimizable']:
+                            for key in sublayer.params.keys():
+                                # 权重衰减
+                                sublayer.params[key] *= (1 - self.lr * sublayer.init['weight_decay'])
+
+                                grad = sublayer.grads[key]
+                                m_key = (id(sublayer), key)
+                                block_m[m_key] = self.beta1 * block_m[m_key] + (1 - self.beta1) * grad
+                                block_v[m_key] = self.beta2 * block_v[m_key] + (1 - self.beta2) * (grad ** 2)
+
+                                m_hat = block_m[m_key] / (1 - self.beta1 ** self.t)
+                                v_hat = block_v[m_key] / (1 - self.beta2 ** self.t)
+
+                                sublayer.params[key] -= self.lr * m_hat / (cp.sqrt(v_hat) + self.eps)
+                    continue
+
                 layer_m = self.m[i]
                 layer_v = self.v[i]
                 for key in layer.params.keys():

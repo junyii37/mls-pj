@@ -2,7 +2,6 @@ import numpy as np
 import os
 import pickle
 
-
 def preprocess(dataset):
     """
     Data Preprocessing
@@ -11,19 +10,39 @@ def preprocess(dataset):
         dataset (torchvision.datasets)
 
     [Outputs]
-        images, labels_onehot (numpy.ndarray)
+        images (numpy.ndarray): shape (N, C, H, W), values in [0,1]
+        labels_onehot (numpy.ndarray): one-hot encoded labels with shape (N, num_classes)
     """
-    # 将数据转换为 numpy，并添加一个维度
-    images = dataset.data.numpy().reshape(-1, 1, 28, 28)
+    # 取出原始数据
+    data = dataset.data
+    # 如果是 PyTorch Tensor，就转为 NumPy
+    if hasattr(data, 'numpy'):
+        images = data.numpy()
+    else:
+        images = data
 
+    # 处理通道顺序：
+    # - MNIST: (N, H, W) -> (N, 1, H, W)
+    # - CIFAR-10: (N, H, W, C) -> (N, C, H, W)
+    if images.ndim == 3:
+        # 灰度图
+        images = images.reshape(-1, 1, images.shape[1], images.shape[2])
+    elif images.ndim == 4:
+        # 彩色图
+        images = images.transpose(0, 3, 1, 2)
+    else:
+        raise ValueError(f"Unsupported image dimensions: {images.shape}")
+
+    # 转为 float32 并归一化到 [0,1]
+    images = images.astype(np.float32)
     if images.max() > 1.0:
-        images = images / 255.0
+        images /= 255.0
 
-    # transfer targets to one-hot labels
-    labels = dataset.targets
-    labels_onehot = np.zeros((len(labels), 10))
-    for n, _class in enumerate(labels):
-        labels_onehot[n][_class] = 1
+    # 构造 one-hot 标签
+    labels = np.array(dataset.targets)
+    num_classes = labels.max() + 1
+    labels_onehot = np.zeros((len(labels), num_classes), dtype=np.float32)
+    labels_onehot[np.arange(len(labels)), labels] = 1
 
     return images, labels_onehot
 

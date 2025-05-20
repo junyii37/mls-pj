@@ -22,7 +22,6 @@ class Linear(Layer):
             'b': initialize_method(size=(out_channel, ))  # b 是一维的
         }
 
-        a=1
 
     def __call__(self, X):
         return self.forward(X)

@@ -48,7 +48,7 @@ def sliding(inputs, kernel, stride=1):
 
 class Conv(Layer):
     """ 卷积层 """
-    def __init__(self, in_channel, out_channel, kernel, stride=1, padding=0, initialize_method=He, weight_decay=0, optimizable=True):
+    def __init__(self, in_channel, out_channel, kernel=3, stride=1, padding=1, initialize_method=He, weight_decay=0, optimizable=True):
         super().__init__()
 
         self.init = {
@@ -119,7 +119,12 @@ class Conv(Layer):
         ## 反向传播
         grads_dilated_padded_windows = sliding(inputs=grads_dilated_padded, kernel=self.init['kernel'], stride=1)
         dX_padded = cp.einsum('nohwuv,ocuv->nchw', grads_dilated_padded_windows, W_rot180)
-        return dX_padded[:, :, self.init['padding']:-self.init['padding'], self.init['padding']:-self.init['padding']]
+
+        padding = self.init['padding']
+        if padding > 0:
+            return dX_padded[:, :, padding:-padding, padding:-padding]
+        else:
+            return dX_padded
 
     def clear_grad(self):
         self.grads = {'W': None, 'b': None}

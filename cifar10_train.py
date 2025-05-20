@@ -1,8 +1,9 @@
 import argparse
 import sys
-from torchvision.datasets import MNIST
-from mynn.data import mnist_augment, preprocess, basic_mnist_augment, merge_datasets
+from torchvision.datasets import MNIST, CIFAR10
+from mynn.data import mnist_augment, preprocess, basic_mnist_augment, merge_datasets, cifar10_augment, basic_cifar10_augment
 from mynn.layer import Flatten, Linear, ReLU, He, Conv, Dropout, Pooling, BN
+from mynn.layer.blocks import BasicBlock
 from mynn.loss import CrossEntropy
 from mynn import Model
 from mynn.optimizer import SGD, Adam, MomentGD
@@ -14,10 +15,10 @@ import cupy as cp
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a CNN on MNIST with configurable hyperparameters")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
-    parser.add_argument("--weight_decay", type=float, default=0.2, help="L2 weight decay coefficient")
-    parser.add_argument("--rate", type=float, default=0.3, help="Dropout rate")
+    parser.add_argument("--weight_decay", type=float, default=0.35, help="L2 weight decay coefficient")
+    parser.add_argument("--rate", type=float, default=0.5, help="Dropout rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Training batch size")
-    parser.add_argument("--num_epochs", type=int, default=20, help="Number of training epochs")
+    parser.add_argument("--num_epochs", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--T_max", type=int, default=10, help="T_max for CosineAnnealingLR")
     parser.add_argument("--eta_min", type=float, default=1e-6, help="eta_min for CosineAnnealingLR")
     parser.add_argument("--patience", type=int, default=7, help="Patience for EarlyStopping")
@@ -37,16 +38,16 @@ def main():
     print("Hyperparameters:", vars(args), file=sys.stdout)
 
     # 1. 数据加载与预处理
-    train_dataset = MNIST(
+    train_dataset = CIFAR10(
         root="dataset",
         train=True,
-        transform=basic_mnist_augment(train=True),
+        transform=basic_cifar10_augment(train=True),
         download=True
     )
-    test_dataset = MNIST(
+    test_dataset = CIFAR10(
         root="dataset",
         train=False,
-        transform=basic_mnist_augment(train=False),
+        transform=basic_cifar10_augment(train=False),
         download=True
     )
 
@@ -55,71 +56,39 @@ def main():
     train_images, train_labels = preprocess(train_dataset)
     test_images,  test_labels  = preprocess(test_dataset)
 
-    train_set = (train_images[:50000], train_labels[:50000])
-    dev_set   = (train_images[50000:], train_labels[50000:])
+    train_set = (train_images[:45000], train_labels[:45000])
+    dev_set   = (train_images[45000:], train_labels[45000:])
     test_set  = (test_images,       test_labels)
 
     # 数据增强
-    train_dataset_augment = MNIST(
+    train_dataset_augment = CIFAR10(
         root="dataset",
         train=True,
-        transform=mnist_augment(train=True),
+        transform=cifar10_augment(train=True),
         download=True
     )
 
     train_images, train_labels = preprocess(train_dataset_augment)
-    train_set_augment = (train_images[:50000], train_labels[:50000])
-    dev_set_augment   = (train_images[50000:], train_labels[50000:])
+    train_set_augment = (train_images[:45000], train_labels[:45000])
+    dev_set_augment   = (train_images[45000:], train_labels[45000:])
 
-    if True:
-        train_set = merge_datasets(train_set, train_set_augment)
-        dev_set = merge_datasets(dev_set, dev_set_augment)
+    train_set = merge_datasets(train_set, train_set_augment)
+    dev_set = merge_datasets(dev_set, dev_set_augment)
 
 
-    # 2. 模型结构
-
-    # # Test 1: MLP
-    # layers = [
-    #     Flatten(),
-    #
-    #     # 第一层：宽度与初始化策略
-    #     # Linear(28 * 28, 512),
-    #     Linear(28 * 28, 512, weight_decay=0.2),
-    #     ReLU(),
-    #     Dropout(0.3),
-    #
-    #     # 第二层：深度扩展
-    #     # Linear(512, 256),
-    #     Linear(512, 256, weight_decay=0.2),
-    #     ReLU(),
-    #     Dropout(0.3),
-    #
-    #     # 第三层：特征压缩
-    #     # Linear(256, 128),
-    #     Linear(256, 128, weight_decay=0.2),
-    #     ReLU(),
-    #     Dropout(0.3),
-    #     # 输出层
-    #     Linear(128, 10),
-    #     # Linear(128, 10, weight_decay=0.2),
-    # ]
-
-    # Test 2
+    # 残差神经网络测试
     layers = [
-        Conv(in_channel=1, out_channel=32, kernel=3, stride=1, padding=1, weight_decay=args.weight_decay),
-        BN(normalized_dims=(0, 2, 3), param_shape=(1, 32, 1, 1), weight_decay=args.weight_decay),
-        ReLU(),
-        Pooling(kernel=2),
+        BasicBlock(in_channels=3, out_channels=32, weight_decay=args.weight_decay),
 
-        Conv(in_channel=32, out_channel=64, kernel=3, stride=1, padding=1, weight_decay=args.weight_decay),
-        BN(normalized_dims=(0, 2, 3), param_shape=(1, 64, 1, 1), weight_decay=args.weight_decay),
-        ReLU(),
-        Pooling(kernel=2),
+        BasicBlock(in_channels=32, out_channels=64, weight_decay=args.weight_decay),
+
+        BasicBlock(in_channels=64, out_channels=128, weight_decay=args.weight_decay),
+
+        Pooling(kernel=4),
 
         Flatten(),
         Dropout(rate=args.rate),
-
-        Linear(in_channel=64 * 7 * 7, out_channel=10, weight_decay=args.weight_decay),
+        Linear(in_channel=128 * 1 * 1, out_channel=10, weight_decay=args.weight_decay),
     ]
 
     model     = Model(layers)
@@ -152,8 +121,8 @@ def main():
     test_loss, test_acc = runner.evaluate(test_set, batch_size=args.batch_size)
     print(f"Test loss: {test_loss:.5f}, Test accuracy: {test_acc:.5f}")
 
-    # 5. 模型参数可视化
-    model.visualize_parameters()
+    # # 5. 模型参数可视化
+    # model.visualize_parameters()
 
 
 if __name__ == "__main__":
