@@ -1,9 +1,9 @@
 import argparse
 from pathlib import Path
 
-from torchvision.datasets import MNIST, CIFAR10
+from torchvision.datasets import MNIST
 
-from mynn.data import mnist_augment, preprocess, basic_cifar10_augment
+from mynn.data import mnist_augment, preprocess
 from mynn import Model
 from mynn.loss import CrossEntropy
 from mynn.runner import RunnerM
@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument(
         "--saved_dir",
         type=Path,
-        default=Path("saved_models"),
+        default=Path("../saved_models"),
         help="Directory in which to auto-detect the latest model subfolder"
     )
     parser.add_argument(
@@ -64,10 +64,10 @@ def main():
     print(f"> Loading model from: {model_path}")
 
     # 2. 加载测试集并预处理
-    test_ds = CIFAR10(
+    test_ds = MNIST(
         root="dataset",
         train=False,
-        transform=basic_cifar10_augment(train=False),
+        transform=mnist_augment(train=False),
         download=False
     )
     test_images, test_labels = preprocess(test_ds)

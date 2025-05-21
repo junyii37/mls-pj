@@ -7,18 +7,13 @@ from ..initialization import He
 
 
 class BasicBlock(Layer):
-    """手写残差块：Conv3×3→BN→ReLU→Conv3×3→BN + Shortcut → ReLU"""
-    expansion = 1
-
-    def __init__(self, in_channels, out_channels, kernel=4, stride=2, padding=1, initialize_method=He, weight_decay=0.2, optimizable=True):
+    def __init__(self, in_channels, out_channels, downsampling=False, initialize_method=He, weight_decay=0.2, optimizable=True):
         super().__init__()
         # 基块配置参数
         self.init = {
             'in_channels': in_channels,
             'out_channels': out_channels,
-            'kernel': kernel,
-            'stride': stride,
-            'padding': padding,
+            'downsampling': downsampling,
             'initialize_method': initialize_method,
             'weight_decay': weight_decay,
             'optimizable': optimizable
@@ -30,9 +25,9 @@ class BasicBlock(Layer):
         self.conv1 = Conv(
             in_channel=in_channels,
             out_channel=out_channels,
-            kernel=kernel,
-            stride=stride,
-            padding=padding,
+            kernel=4 if downsampling else 3,
+            stride=2 if downsampling else 1,
+            padding=1,
             initialize_method=initialize_method,
             weight_decay=weight_decay,
             optimizable=optimizable
@@ -57,12 +52,12 @@ class BasicBlock(Layer):
             param_shape=(1, out_channels, 1, 1)
         )
         # Shortcut 分支
-        if stride != 1 or in_channels != out_channels * self.expansion:
+        if downsampling:
             self.short_conv = Conv(
                 in_channel=in_channels,
-                out_channel=out_channels * self.expansion,
+                out_channel=out_channels,
                 kernel=2,
-                stride=stride,
+                stride=2,
                 padding=0,
                 initialize_method=initialize_method,
                 weight_decay=weight_decay,
@@ -70,7 +65,7 @@ class BasicBlock(Layer):
             )
             self.short_bn = BN(
                 normalized_dims=(0, 2, 3),
-                param_shape=(1, out_channels * self.expansion, 1, 1)
+                param_shape=(1, out_channels, 1, 1)
             )
         else:
             self.short_conv = None
