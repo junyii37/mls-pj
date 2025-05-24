@@ -213,6 +213,8 @@ class RunnerM:
         best_score = 0.0
         total_iters = math.ceil(len(train_set[0]) / batch_size)
 
+         ce_loss_fn=CrossEntropy(model=self.model)
+
         for epoch in range(1, num_epochs + 1):
             desc = f"[Adversarial Train] Epoch {epoch}/{num_epochs}"
             loader = dataloader(train_set, batch_size, shuffle)
