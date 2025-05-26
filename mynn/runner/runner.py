@@ -9,6 +9,11 @@ from tqdm import tqdm
 
 from mynn.data import dataloader
 from ..attack import generate_adversarial_batch_bim, generate_adversarial_batch_fgsm
+from mynn.loss import CrossEntropy,TRADESLoss
+from mynn.attack import pgd_kl_attack
+
+
+
 
 class RunnerM:
     """
@@ -213,7 +218,7 @@ class RunnerM:
         best_score = 0.0
         total_iters = math.ceil(len(train_set[0]) / batch_size)
 
-         ce_loss_fn=CrossEntropy(model=self.model)
+        ce_loss_fn=CrossEntropy(model=self.model)
 
         for epoch in range(1, num_epochs + 1):
             desc = f"[Adversarial Train] Epoch {epoch}/{num_epochs}"
