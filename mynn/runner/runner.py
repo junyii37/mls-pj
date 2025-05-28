@@ -115,15 +115,17 @@ class RunnerM:
         strategy = kwargs.get('strategy', None)
         epsilon = kwargs.get('epsilon', 2.0 / 255.0)
         shuffle = kwargs.get('shuffle', True)
-        attack_strategy = kwargs.get('attack_strategy', None)
+        attack_strategy = kwargs.get('attack_strategy','fgsm')
         save_dir = Path(kwargs.get('save_dir', 'saved_models'))
         num_steps = kwargs.get("num_steps", 5)
         step_size = kwargs.get("step_size", 0.5 / 255)
 
         if attack_strategy == 'bim':
             generate_adversarial_batch = generate_adversarial_batch_bim
-        else:
+        elif attack_strategy == 'fgsm':
             generate_adversarial_batch = generate_adversarial_batch_fgsm
+
+        # else if
 
         self.results.clear()
         now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
