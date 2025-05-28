@@ -9,11 +9,6 @@ from tqdm import tqdm
 
 from mynn.data import dataloader
 from ..attack import generate_adversarial_batch_bim, generate_adversarial_batch_fgsm
-from mynn.loss import CrossEntropy,TRADESLoss
-from mynn.attack import pgd_kl_attack
-
-
-
 
 class RunnerM:
     """
@@ -118,10 +113,12 @@ class RunnerM:
         num_epochs = kwargs.get('num_epochs', 50)
         scheduler = kwargs.get('scheduler', None)
         strategy = kwargs.get('strategy', None)
-        epsilon = kwargs.get('epsilon', 1.0/255)
+        epsilon = kwargs.get('epsilon', 2.0 / 255.0)
         shuffle = kwargs.get('shuffle', True)
         attack_strategy = kwargs.get('attack_strategy', None)
         save_dir = Path(kwargs.get('save_dir', 'saved_models'))
+        num_steps = kwargs.get("num_steps", 5)
+        step_size = kwargs.get("step_size", 0.5 / 255)
 
         if attack_strategy == 'bim':
             generate_adversarial_batch = generate_adversarial_batch_bim
@@ -151,7 +148,7 @@ class RunnerM:
                     y_target = y_batch[half:]
 
                     # 动态生成对抗样本
-                    x_adv = generate_adversarial_batch(self.model, x_target, y_target, self.loss,epsilon)
+                    x_adv = generate_adversarial_batch(self.model, x_target, y_target, self.loss, epsilon, num_steps, step_size)
 
                     # 合并 clean + adv
                     X_aug = cp.concatenate([x_clean, x_adv], axis=0)
@@ -198,102 +195,8 @@ class RunnerM:
                 break
 
         self.plot()
-    def train_with_trade(self, train_set, dev_set, **kwargs):
-        batch_size = kwargs.get('batch_size', 128)
-        num_epochs = kwargs.get('num_epochs', 50)
-        scheduler = kwargs.get('scheduler', None)
-        strategy = kwargs.get('strategy', None)
-        epsilon = kwargs.get('epsilon', 8 / 255)
-        num_steps=kwargs.get('num_steps', 10)
-        step_size=kwargs.get('step_size', 1/255)
-        shuffle = kwargs.get('shuffle', True)
-        save_dir = Path(kwargs.get('save_dir', 'saved_models'))
 
-        self.results.clear()
-        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.path = save_dir / now
-        self.path.mkdir(parents=True, exist_ok=True)
-        self.num_epochs = num_epochs
-
-        best_score = 0.0
-        total_iters = math.ceil(len(train_set[0]) / batch_size)
-
-        ce_loss_fn=CrossEntropy(model=self.model)
-
-        for epoch in range(1, num_epochs + 1):
-            desc = f"[Adversarial Train] Epoch {epoch}/{num_epochs}"
-            loader = dataloader(train_set, batch_size, shuffle)
-
-            with tqdm(loader, total=total_iters, desc=desc, file=sys.stdout, unit='batch', colour='blue') as pbar:
-                for X_batch, y_batch in pbar:
-                    # 原始数据 x_clean 和 目标数据 x_target
-                    x_clean = X_batch
-                    y_clean = y_batch
-
-                    # 使用 clean 样本生成对应的 adversarial 样本
-                    # x_adv = generate_adversarial_batch_fgsm_trades(self.model, x_clean, epsilon=epsilon)
-                    x_adv = pgd_kl_attack(
-                        model=self.model,
-                        images=x_clean,
-                        epsilon=epsilon,
-                        num_steps=num_steps,
-                        step_size=step_size
-                    )
-
-                    X_combined = cp.concatenate([x_clean, x_adv], axis=0)
-
-                    # 单次前向传播（同时处理 clean 和 adv）
-                    logits_combined = self.model(X_combined, train=True)
-
-                    # 分割 logits
-                    B = x_clean.shape[0]
-                    logits_clean = logits_combined[:B]
-                    logits_adv = logits_combined[B:]
-
-                    # 计算 TRADES 损失
-                    total_loss, acc_val = self.loss(logits_clean, logits_adv, y_clean)
-
-                    # 反向传播（单次调用）
-                    self.loss.backward()
-                    self.optimizer.step()
-
-                    # 存储日志
-                    loss_f = float(total_loss)
-                    acc_f = float(acc_val)
-                    self.results['train_loss_iter'].append(loss_f)
-                    self.results['train_acc_iter'].append(acc_f)
-                    pbar.set_postfix(loss=loss_f, accuracy=acc_f)
-
-            # 每 epoch 后评估
-            train_loss, train_acc = self.evaluate(train_set,loss_fn=ce_loss_fn)
-            dev_loss, dev_acc = self.evaluate(dev_set,loss_fn=ce_loss_fn)
-
-            print(f"train_loss: {train_loss:.5f}, train_acc: {train_acc:.5f}")
-            print(f"dev_loss  : {dev_loss:.5f}, dev_acc  : {dev_acc:.5f}")
-
-            self.results['train_loss_epoch'].append(train_loss)
-            self.results['train_acc_epoch'].append(train_acc)
-            self.results['dev_loss_epoch'].append(dev_loss)
-            self.results['dev_acc_epoch'].append(dev_acc)
-            self.results['epoch_iters'].append(len(self.results['train_loss_iter']))
-
-            if scheduler:
-                scheduler.step()
-
-            if dev_acc > best_score:
-                save_path = self.path / 'best_model.pickle'
-                self.save_model(str(save_path))
-                print(f"### Best validation accuracy updated: {best_score:.5f} -> {dev_acc:.5f}")
-                best_score = dev_acc
-
-            if strategy and strategy.step(dev_acc):
-                break
-
-        self.plot()
-
-    def evaluate(self, dataset, batch_size=256,loss_fn=None):
-        if loss_fn is None:
-            loss_fn=self.loss
+    def evaluate(self, dataset, batch_size=256):
         loss_list, acc_list = [], []
         for X_batch, y_batch in dataloader(dataset, batch_size=batch_size, shuffle=False):
             Xb = cp.asarray(X_batch)
