@@ -1,7 +1,7 @@
 import numpy as np
 import cupy as cp
 
-def generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon=1 / 255, alpha=1 / 255, num_iter=10):
+def generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon=2 / 255, num_steps=5, step_size=0.5 / 255):
     """
     基于 BIM 攻击方法生成对抗样本。
 
@@ -19,27 +19,23 @@ def generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon=1 /
     """
     x_adv = x_batch.copy()
 
-    for _ in range(num_iter):
-        # 前向传播
+    for _ in range(num_steps):
         logits = model.forward(x_adv)
         loss, _ = loss_fn.forward(logits, y_batch)
 
-        # 反向传播获取输入梯度
         loss_fn.backward()
         grad = model.grad_input
 
-        # 梯度步更新
-        x_adv = x_adv + alpha * cp.sign(grad)
+        x_adv = x_adv + step_size * cp.sign(grad)
 
-        # 限制扰动不超过 epsilon 邻域
-        x_adv = cp.clip(x_adv, x_batch - epsilon, x_batch + epsilon)
-        # 限制合法像素范围（如 [0, 1]）
+        x_adv = cp.clip(x_adv, x_adv - epsilon, x_adv + epsilon)
+
         x_adv = cp.clip(x_adv, 0, 1)
 
     return x_adv
 
 
-def bim_attack(model, images, labels, loss_fn, epsilon=8 / 255, alpha=2 / 255, num_iter=4, batch_size=64):
+def bim_attack(model, images, labels, loss_fn, epsilon=2 / 255, num_steps=5, step_size=0.5 / 255, batch_size=64):
     """
     对整个数据集进行 BIM 攻击（分批次）
 
@@ -66,7 +62,7 @@ def bim_attack(model, images, labels, loss_fn, epsilon=8 / 255, alpha=2 / 255, n
         x_batch = images[i:i + batch_size]
         y_batch = labels[i:i + batch_size]
 
-        x_adv = generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon, alpha, num_iter)
+        x_adv = generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon, num_steps, step_size)
         adv_images.append(x_adv)
 
     adv_images = cp.concatenate(adv_images, axis=0)
