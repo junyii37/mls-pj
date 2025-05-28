@@ -28,7 +28,7 @@ def generate_adversarial_batch_bim(model, x_batch, y_batch, loss_fn, epsilon=2 /
 
         x_adv = x_adv + step_size * cp.sign(grad)
 
-        x_adv = cp.clip(x_adv, x_adv - epsilon, x_adv + epsilon)
+        x_adv = cp.clip(x_adv, x_batch - epsilon, x_batch + epsilon)
 
         x_adv = cp.clip(x_adv, 0, 1)
 
