@@ -8,34 +8,10 @@ import sys
 from tqdm import tqdm
 
 from mynn.data import dataloader
-from ..attack import generate_adversarial_batch_bim, generate_adversarial_batch_fgsm
+from mynn.attack import generate_adversarial_batch_fgsm,generate_adversarial_batch_bim,generate_adversarial_batch_pgd
 from mynn.loss import CrossEntropy,TRADESLoss
 from mynn.attack import pgd_kl_attack
 
-
-import torch
-import torch.nn as nn
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-def pgd_attack(model, images, labels, eps=0.3, alpha=2 / 255, iters=40):
-    images = images.to(device)
-    labels = labels.to(device)
-    loss = nn.CrossEntropyLoss()
-
-    ori_images = images.data
-
-    for i in range(iters):
-        images.requires_grad = True
-        outputs = model(images)
-
-        model.zero_grad()
-        cost = loss(outputs, labels).to(device)
-        cost.backward()
-
-        adv_images = images + alpha * images.grad.sign()
-        eta = torch.clamp(adv_images - ori_images, min=-eps, max=eps)
-        images = torch.clamp(ori_images + eta, min=0, max=1).detach_()
-
-    return images
 
 
 
@@ -92,6 +68,7 @@ class RunnerM:
 
                 for X_batch, y_batch in pbar:
                     # 前向
+                    # print(f"[Batch Pixel Range] min: {X_batch.min():.4f}, max: {X_batch.max():.4f}")
                     logits = self.model(X_batch, train=True)
                     loss_val, acc_val = self.loss(logits, y_batch)
 
@@ -109,8 +86,8 @@ class RunnerM:
                     pbar.set_postfix(loss=loss_f, accuracy=acc_f)
 
             # Epoch 后评估
-            train_loss, train_acc = self.evaluate(train_set)
-            dev_loss,   dev_acc   = self.evaluate(dev_set)
+            train_loss, train_acc = self.evaluate(train_set,loss_fn=self.loss)
+            dev_loss,   dev_acc   = self.evaluate(dev_set,loss_fn=self.loss)
 
             print(f"train_loss: {train_loss:.5f}, train_acc: {train_acc:.5f}")
             print(f"dev_loss  : {dev_loss:.5f}, dev_acc  : {dev_acc:.5f}")
@@ -142,16 +119,22 @@ class RunnerM:
         num_epochs = kwargs.get('num_epochs', 50)
         scheduler = kwargs.get('scheduler', None)
         strategy = kwargs.get('strategy', None)
-        epsilon = kwargs.get('epsilon', 1.0/255)
+        epsilon = kwargs.get('epsilon', 1/255)
         shuffle = kwargs.get('shuffle', True)
         attack_strategy = kwargs.get('attack_strategy', 'fgsm')
         save_dir = Path(kwargs.get('save_dir', 'saved_models'))
+        num_steps = kwargs.get("num_steps", 5)
+        step_size = kwargs.get("step_size", 0.5 / 255)
 
         if attack_strategy == 'bim':
             generate_adversarial_batch = generate_adversarial_batch_bim
-        elif attack_strategy == 'fgsm':
+        elif attack_strategy =='fgsm':
             generate_adversarial_batch = generate_adversarial_batch_fgsm
-        # else if
+        elif attack_strategy == 'PGD' :
+            generate_adversarial_batch = generate_adversarial_batch_pgd
+        else:
+            generate_adversarial_batch = generate_adversarial_batch_fgsm
+
         self.results.clear()
         now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.path = save_dir / now
@@ -175,7 +158,7 @@ class RunnerM:
                     y_target = y_batch[half:]
 
                     # 动态生成对抗样本
-                    x_adv = generate_adversarial_batch(self.model, x_target, y_target, self.loss,epsilon)
+                    x_adv = generate_adversarial_batch(self.model, x_target, y_target, self.loss,epsilon,num_steps,step_size)
 
                     # 合并 clean + adv
                     X_aug = cp.concatenate([x_clean, x_adv], axis=0)
@@ -197,8 +180,8 @@ class RunnerM:
                     pbar.set_postfix(loss=loss_f, accuracy=acc_f)
 
             # 每 epoch 后评估
-            train_loss, train_acc = self.evaluate(train_set)
-            dev_loss, dev_acc = self.evaluate(dev_set)
+            train_loss, train_acc = self.evaluate(train_set,loss_fn=self.loss)
+            dev_loss, dev_acc = self.evaluate(dev_set,loss_fn=self.loss)
 
             print(f"train_loss: {train_loss:.5f}, train_acc: {train_acc:.5f}")
             print(f"dev_loss  : {dev_loss:.5f}, dev_acc  : {dev_acc:.5f}")
@@ -222,6 +205,7 @@ class RunnerM:
                 break
 
         self.plot()
+
     def train_with_trade(self, train_set, dev_set, **kwargs):
         batch_size = kwargs.get('batch_size', 128)
         num_epochs = kwargs.get('num_epochs', 50)
@@ -323,31 +307,13 @@ class RunnerM:
             Xb = cp.asarray(X_batch)
             yb = cp.asarray(y_batch)
             logits = self.model(Xb, train=False)
-            loss_val, acc_val = self.loss(logits, yb)
+            loss_val, acc_val = loss_fn(logits, yb)
             loss_list.append(float(loss_val))
             acc_list.append(float(acc_val))
         avg_loss = sum(loss_list) / len(loss_list) if loss_list else 0.0
         avg_acc  = sum(acc_list)  / len(acc_list)  if acc_list  else 0.0
         return avg_loss, avg_acc
-    
-    # 针对PGD
-    def evaluate2(self, dataset, batch_size=256,loss_fn=None):
-        if loss_fn is None:
-            loss_fn=self.loss
-        loss_list, acc_list = [], []
-        for X_batch, y_batch in dataloader(dataset, batch_size=batch_size, shuffle=False):
-            Xb = cp.asarray(X_batch)
-            yb = cp.asarray(y_batch)
 
-            Xb = pgd_attack(self.model, Xb, yb)
-
-            logits = self.model(Xb, train=False)
-            loss_val, acc_val = self.loss(logits, yb)
-            loss_list.append(float(loss_val))
-            acc_list.append(float(acc_val))
-        avg_loss = sum(loss_list) / len(loss_list) if loss_list else 0.0
-        avg_acc  = sum(acc_list)  / len(acc_list)  if acc_list  else 0.0
-        return avg_loss, avg_acc
     def save_model(self, save_path):
         self.model.save_model(save_path)
 
