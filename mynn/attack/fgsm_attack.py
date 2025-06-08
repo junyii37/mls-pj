@@ -2,7 +2,7 @@ import cupy as cp
 import numpy as np
 
 
-def generate_adversarial_batch_fgsm(model, x_batch, y_batch, loss_fn, epsilon=1 / 255):
+def generate_adversarial_batch_fgsm(model, x_batch, y_batch, loss_fn, epsilon=1 / 255,num_steps=None,step_size=None):
     """
     给定 batch 数据，基于 FGSM 方法实时生成对抗样本。
 
