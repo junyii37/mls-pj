@@ -47,8 +47,7 @@ class Model:
             # 根据 训练/测试 模式设定 Dropout 层的行为模式
             if isinstance(layer, nn.Dropout):
                 layer.set_training(train)
-            if isinstance(layer, nn.BN):
-                layer.set_training(train)
+
             X = layer.forward(X)
         return X
 
