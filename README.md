@@ -110,14 +110,7 @@ $python test.py
 如果想要自定义模型参数路径，可以使用如下命令（ `--model_path` 后面的路径为可更改自定义路径）：
 
 
-## 5. attack and train
 
-在此基础上，我们添加了attack方法，他们被封装在mynn.attack中，包括FGSM,BIM，PGD。
-我们可以使用runner中的train_with_attack和train_with_trades进行相关对抗训练，从而提升模型鲁棒性。
-
-## 6. attack and train result
-
-我们将训练结果放在了attack文件夹和curve文件夹下，可以看到不同攻击方法的结果以及对抗训练带来的提升。
 
 
 ```
@@ -126,3 +119,11 @@ $python test.py
 
 $python test.py --model_path 'saved_models/best_model/best_model.pickle'
 ```
+## 5. attack and train
+
+在此基础上，我们添加了attack方法，他们被封装在mynn.attack中，包括FGSM,BIM，PGD。
+我们可以使用runner中的train_with_attack和train_with_trades进行相关对抗训练，从而提升模型鲁棒性。
+
+## 6. attack and train result
+
+我们将训练结果放在了attack文件夹和curve文件夹下，可以看到不同攻击方法的结果以及对抗训练带来的提升。
