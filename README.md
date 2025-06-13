@@ -117,7 +117,7 @@ $python test.py
 
 ## 6. attack and train result
 
-我们将训练结果放在了result文件夹和curve文件夹下，可以看到不同攻击方法的结果以及对抗训练带来的提升。
+我们将训练结果放在了attack文件夹和curve文件夹下，可以看到不同攻击方法的结果以及对抗训练带来的提升。
 
 
 ```
