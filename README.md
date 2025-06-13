@@ -11,8 +11,11 @@
 代码结构如下：
 ```
 mls-pj/
+├── attack/ 
+├── curve/   
 ├── dataset/
 ├── mynn/
+│   ├── attack/
 │   ├── data/
 │   ├── layer/
 │   ├── loss/
@@ -110,13 +113,7 @@ $python test.py
 如果想要自定义模型参数路径，可以使用如下命令（ `--model_path` 后面的路径为可更改自定义路径）：
 
 
-
-
-
 ```
-
-
-
 $python test.py --model_path 'saved_models/best_model/best_model.pickle'
 ```
 ## 5. attack and train
